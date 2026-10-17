@@ -6,6 +6,8 @@ This repository is the app layer. The underlying model libraries and checkpoints
 
 ## Latest Changes
 
+- YuE2 is now a first-class local comparison backend. It uses the official `yue2` pipeline with `m-a-p/YuE2-3B` and the `m-a-p/YuE2-Vae` listening decoder, so you can A/B it against the other local models from the same prompt, tags, and lyrics.
+- MiniMax Music 3 is now a first-class local comparison backend. It uses the official MiniMaxAI/MiniMax-Music3 weights through Hugging Face Diffusers, so you can A/B it against the other local models without ComfyUI or a MiniMax API key.
 - ACE-Step 1.5 Turbo and ACE-Step 1.5 SFT are now first-class comparison backends with separate model paths, model-specific defaults, and shared task support for `text2music`, `cover`, and `repaint`.
 - The GUI now exposes ACE-Step 1.5 Turbo and SFT settings directly, including their recommended default configs, LM settings, inference steps, and guidance values, while still allowing manual overrides.
 - The launcher and GUI now recover more reliably from stale backend Python settings by preferring a detected working ACE-Step 1.5 interpreter and seeding repo-local ACE-Step 1.5 defaults when present.
@@ -32,6 +34,8 @@ This repository is the app layer. The underlying model libraries and checkpoints
 - HeartMuLa Base 3B
 - MelodyFlow
 - ACE-Step v1-3.5B
+- MiniMax Music 3.0
+- YuE2
 
 ## Repository Layout
 
@@ -139,6 +143,11 @@ Typical local pieces:
 - `.tmp/MelodyFlowSpace` for the official MelodyFlow Space repo used by the working local runner
 - `.venv-acestep` for ACE-Step
 - `third_party/ACE-Step-1.5/.venv` for ACE-Step 1.5
+- `.venv-minimax` for MiniMax Music 3 (torch + Diffusers)
+- `models/comparison/minimax-music-3` for the official MiniMaxAI/MiniMax-Music3 snapshot
+- `.venv-yue2` for YuE2 (official `yue2` package plus CUDA torch 2.10.0)
+- `third_party/YuE` for the official YuE2 inference checkout
+- `models/comparison/yue2/YuE2-3B` and `models/comparison/yue2/YuE2-Vae` for the official weights
 - `.venv-separator310` for transcription and vocal separation
 - `models/heartmula/happy-new-year` for HeartMuLa HNY checkpoints
 - `models/heartmula/base` for HeartMuLa Base checkpoints
@@ -152,6 +161,8 @@ Repo-local backend env setup helpers:
 - `setup_melodyflow_env.bat`
 - `setup_acestep_env.bat`
 - `setup_acestep15_env.bat`
+- `setup_minimax_env.bat`
+- `setup_yue2_env.bat`
 
 These scripts create the corresponding `.venv*` directory under the repo and install the best-known package surface for that backend. The loader-specific scripts expect the corresponding checkout under `third_party/`, so run `bootstrap_AIMusicApp.bat` first.
 
@@ -196,6 +207,17 @@ Minimum operational checklist:
 6. Run `Check Setup` in the app before your first comparison run.
 
 If you want a smaller local install, use either `--models ...` or `--model-config ...` when running `bootstrap_AIMusicApp.bat --download-models` so only the selected backend assets are downloaded.
+
+MiniMax Music 3 is opt-in because the official weight snapshot is large. Enable it with `--models minimax_music_3` or in `config/model_support.example.json`, then run `setup_minimax_env.bat` after bootstrap downloads `MiniMaxAI/MiniMax-Music3`.
+
+YuE2 is also opt-in. The inference code is cloned into `third_party/YuE` by bootstrap. The weights stay off unless you ask for them:
+
+```powershell
+bootstrap_AIMusicApp.bat --download-models --models yue2
+setup_yue2_env.bat
+```
+
+`setup_yue2_env.bat` expects Python 3.10, 3.11, or 3.12. Python 3.12 matches the upstream YuE2 target. Point `YUE2_BASE_PYTHON` at that interpreter if the current `python` is newer. The published listening path wants an NVIDIA GPU with BF16 support and about 24 GB of VRAM. Model weights are CC BY-NC 4.0.
 
 ## Packaging And Build
 
@@ -299,11 +321,26 @@ Use this tab to configure generation backends before running comparisons.
 - `ACE-Step 1.5 Root`, `ACE-Step 1.5 Checkpoints`, and Python path
 - `ACE-Step 1.5 Turbo Config` and `ACE-Step 1.5 SFT Config`
 - shared `ACE-Step 1.5 Task`, `Cover Strength`, `Repaint Start`, and `Repaint End`
+- `MiniMax Model Dir` and `MiniMax Python`
+- `MiniMax CPU Offload` (lower VRAM via Diffusers) and `MiniMax Instrumental`
+- `YuE2 Model Dir`, `YuE2 VAE Dir`, and `YuE2 Python`
+- `YuE2 Planning (cot)`, `YuE2 Runtime`, `YuE2 Memory Budget (GiB)`, optional `YuE2 CFG Scale`, and optional `YuE2 ABC Score`
 
 MelodyFlow note:
 
 - the working local path uses the official `MelodyFlow` implementation from `.tmp/MelodyFlowSpace`
 - you can override that checkout with `MELODYFLOW_SPACE_DIR`
+- MiniMax Music 3 uses the official MiniMaxAI/MiniMax-Music3 Diffusers snapshot under `models/comparison/minimax-music-3`
+- prompt/chat and tags are merged into the MiniMax caption; lyrics keep section tags such as `[Verse]` and `[Chorus]`
+- `Duration (s)` and `Seed` are honored by the local MiniMax path
+- official MiniMax Music 3 inference is text-to-music, so `Reference Audio` is ignored for MiniMax
+- YuE2 uses the official `yue2.YuE2Pipeline` with local `m-a-p/YuE2-3B` and `m-a-p/YuE2-Vae` snapshots under `models/comparison/yue2`
+- prompt/chat and tags become the YuE2 style; lyrics keep section tags such as `[Verse]` and `[Chorus]`
+- `cot=full` writes a melody-and-chord score, `cot=melody` plans melody only, and `cot=off` skips the score
+- YuE2 does not take `Duration (s)`. Song length follows the plan. `Seed` is honored
+- `Reference Audio` is ignored. Put a transcribed ABC file in `YuE2 ABC Score` and use `cot=full` or `cot=melody` to condition on that score
+- the listening preset is the published BF16 path (`torch`, 24 GiB). The eager preset uses `torch-eager` and autoregressive offload when the CUDA graph path fails
+- YuE2 also writes `yue2_artifacts` beside the wav, including `audio.flac`, `score.abc`, and `result.json`
 - the current local runner now exposes `text2music`, `cover`, and `repaint` for the ACE-Step 1.5 Turbo and SFT backends
 - `Task = auto` keeps normal text generation when `Reference Audio` is empty and switches ACE-Step 1.5 Turbo and SFT to cover mode when `Reference Audio` is set
 - `extract`, `lego`, and `complete` remain base-only upstream tasks and are not exposed here because this app is intentionally comparing the non-base 1.5 models
@@ -323,7 +360,8 @@ MelodyFlow note:
 8. Configure either ACE-Step line only if you intend to use it.
 9. For ACE-Step 1.5 Turbo and SFT comparisons, leave `ACE-Step 1.5 Task` on `auto` for ordinary text generation.
 10. Set `Reference Audio` plus `ACE-Step 1.5 Task = repaint` only when you want repaint behavior instead of cover behavior.
-11. Return to the top controls, enter your prompt, choose duration, and click `Run Comparison` or `Generate` on a single model card.
+11. For MiniMax Music 3, confirm the official model dir and MiniMax Python path. Use the quality preset for GPU-resident inference, or the low-VRAM preset for Diffusers CPU offload.
+12. Return to the top controls, enter your prompt, choose duration, and click `Run Comparison` or `Generate` on a single model card.
 
 ### Recommended HeartMuLa Modes
 
@@ -388,7 +426,7 @@ The top area drives all generation runs.
 - `Seed`: optional deterministic seed
 - `Tags`: extra tag string for models that use tag conditioning
 - `Output Dir`: destination for generated audio and summaries
-- `Reference Audio`: used by ACE-Step 1.5 Turbo and ACE-Step 1.5 SFT for `cover` and `repaint` tasks, and reserved for other backends that may later use source-audio conditioning
+- `Reference Audio`: used by ACE-Step 1.5 Turbo and ACE-Step 1.5 SFT for `cover` and `repaint` tasks. MiniMax Music 3 is text-to-music, so it ignores this field.
 
 ### Typical Generation Workflow
 
@@ -467,6 +505,21 @@ python -m unittest tests.test_music_compare_gui_settings tests.test_compare_musi
 - Verify the model directory contains `state_dict.bin` and `compression_state_dict.bin`.
 - If you are on PyTorch 2.6 or newer, make sure checkpoint loading uses `weights_only=False`.
 - Use the current runner in `tools/ai/run_melodyflow_backend.py` rather than older local experiments.
+
+### MiniMax Music 3 setup check fails
+
+- Run `bootstrap_AIMusicApp.bat --download-models --models minimax_music_3` so `models/comparison/minimax-music-3` contains `modular_model_index.json`.
+- Run `setup_minimax_env.bat` so `.venv-minimax` can import `torch`, `diffusers`, `transformers`, and `accelerate`.
+- Confirm `MiniMax Model Dir` points at that official snapshot. No ComfyUI checkout is required.
+- No MiniMax API key or paid token is required for this path.
+
+### YuE2 setup check fails
+
+- Run `bootstrap_AIMusicApp.bat` so `third_party/YuE` exists, then `setup_yue2_env.bat`.
+- Run `bootstrap_AIMusicApp.bat --download-models --models yue2` so `models/comparison/yue2/YuE2-3B` contains `qwen.tiktoken` and `models/comparison/yue2/YuE2-Vae` contains `config.json`.
+- Use Python 3.12 for `.venv-yue2` when the default interpreter is outside `>=3.10, <3.13`.
+- If generation fails on a CUDA graph, switch `YuE2 Runtime` to `torch-eager` or click `Apply YuE2 Eager Preset`.
+- A 24 GB BF16 GPU is the published starting point. This backend does not quantize the weights.
 
 ### HeartMuLa runs out of memory
 

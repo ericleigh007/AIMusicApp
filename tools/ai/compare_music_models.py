@@ -6,7 +6,7 @@ comparison report.
 CLI:
   python tools/ai/compare_music_models.py \
       --prompt "dark ambient techno with metallic percussion" \
-                --models heartmula_hny heartmula_base melodyflow ace_step ace_step_v15_turbo ace_step_v15_sft \
+                --models heartmula_hny heartmula_base melodyflow ace_step ace_step_v15_turbo ace_step_v15_sft minimax_music_3 yue2 \
       --output-dir .tmp/music_compare/demo
 
 Output JSON to stdout:
@@ -110,6 +110,8 @@ def main() -> None:
             "ace_step_v15",
             "ace_step_v15_turbo",
             "ace_step_v15_sft",
+            "minimax_music_3",
+            "yue2",
         ],
         default=["heartmula_hny", "heartmula_base", "melodyflow", "ace_step", "ace_step_v15_turbo", "ace_step_v15_sft"],
     )

@@ -58,7 +58,6 @@ def download_hf_repo(
         repo_id=repo_id,
         repo_type=repo_type,
         local_dir=str(destination),
-        local_dir_use_symlinks=False,
         token=effective_token,
         allow_patterns=allow_patterns,
         ignore_patterns=ignore_patterns,

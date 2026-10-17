@@ -6,6 +6,8 @@
     "ace_step": true,
     "ace_step_v15_turbo": true,
     "ace_step_v15_sft": true,
+    "minimax_music_3": true,
+    "yue2": false,
     "audiox": false
   }
 }

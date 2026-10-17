@@ -103,6 +103,20 @@ def detect_default_backend_settings(
         "ACESTEP15_COVER_STRENGTH": env.get("ACESTEP15_COVER_STRENGTH", DEFAULT_ACESTEP15_COVER_STRENGTH).strip(),
         "ACESTEP15_REPAINT_START": env.get("ACESTEP15_REPAINT_START", DEFAULT_ACESTEP15_REPAINT_START).strip(),
         "ACESTEP15_REPAINT_END": env.get("ACESTEP15_REPAINT_END", DEFAULT_ACESTEP15_REPAINT_END).strip(),
+        "MINIMAX_MODEL_DIR": env.get("MINIMAX_MODEL_DIR", "").strip(),
+        "MINIMAX_PYTHON": env.get("MINIMAX_PYTHON", "").strip(),
+        "MINIMAX_CPU_OFFLOAD": env.get("MINIMAX_CPU_OFFLOAD", DEFAULT_MINIMAX_CPU_OFFLOAD).strip(),
+        "MINIMAX_INSTRUMENTAL": env.get("MINIMAX_INSTRUMENTAL", DEFAULT_MINIMAX_INSTRUMENTAL).strip(),
+        "YUE2_MODEL_DIR": env.get("YUE2_MODEL_DIR", "").strip(),
+        "YUE2_VAE_DIR": env.get("YUE2_VAE_DIR", "").strip(),
+        "YUE2_PYTHON": env.get("YUE2_PYTHON", "").strip(),
+        "YUE2_COT": env.get("YUE2_COT", DEFAULT_YUE2_COT).strip(),
+        "YUE2_RUNTIME": env.get("YUE2_RUNTIME", DEFAULT_YUE2_RUNTIME).strip(),
+        "YUE2_MEMORY_BUDGET_GIB": env.get("YUE2_MEMORY_BUDGET_GIB", DEFAULT_YUE2_MEMORY_BUDGET_GIB).strip(),
+        "YUE2_OFFLOAD_AR": env.get("YUE2_OFFLOAD_AR", DEFAULT_YUE2_OFFLOAD_AR).strip(),
+        "YUE2_CFG_SCALE": env.get("YUE2_CFG_SCALE", "").strip(),
+        "YUE2_ABC_PATH": env.get("YUE2_ABC_PATH", "").strip(),
+        "YUE2_DEVICE": env.get("YUE2_DEVICE", DEFAULT_YUE2_DEVICE).strip(),
     }
 
     if not defaults["HEARTMULA_ROOT"]:
@@ -183,6 +197,30 @@ def detect_default_backend_settings(
         defaults["ACESTEP15_REPAINT_START"] = DEFAULT_ACESTEP15_REPAINT_START
     if not defaults["ACESTEP15_REPAINT_END"]:
         defaults["ACESTEP15_REPAINT_END"] = DEFAULT_ACESTEP15_REPAINT_END
+    if not defaults["MINIMAX_MODEL_DIR"]:
+        defaults["MINIMAX_MODEL_DIR"] = _resolve_existing_path(repo_root / "models" / "comparison" / "minimax-music-3")
+    if not defaults["MINIMAX_PYTHON"]:
+        defaults["MINIMAX_PYTHON"] = _pick_python_path([repo_root / ".venv-minimax" / "Scripts" / "python.exe"], fallback)
+    if not defaults["MINIMAX_CPU_OFFLOAD"]:
+        defaults["MINIMAX_CPU_OFFLOAD"] = DEFAULT_MINIMAX_CPU_OFFLOAD
+    if not defaults["MINIMAX_INSTRUMENTAL"]:
+        defaults["MINIMAX_INSTRUMENTAL"] = DEFAULT_MINIMAX_INSTRUMENTAL
+    if not defaults["YUE2_MODEL_DIR"]:
+        defaults["YUE2_MODEL_DIR"] = _resolve_existing_path(repo_root / "models" / "comparison" / "yue2" / "YuE2-3B")
+    if not defaults["YUE2_VAE_DIR"]:
+        defaults["YUE2_VAE_DIR"] = _resolve_existing_path(repo_root / "models" / "comparison" / "yue2" / "YuE2-Vae")
+    if not defaults["YUE2_PYTHON"]:
+        defaults["YUE2_PYTHON"] = _pick_python_path([repo_root / ".venv-yue2" / "Scripts" / "python.exe"], fallback)
+    if not defaults["YUE2_COT"]:
+        defaults["YUE2_COT"] = DEFAULT_YUE2_COT
+    if not defaults["YUE2_RUNTIME"]:
+        defaults["YUE2_RUNTIME"] = DEFAULT_YUE2_RUNTIME
+    if not defaults["YUE2_MEMORY_BUDGET_GIB"]:
+        defaults["YUE2_MEMORY_BUDGET_GIB"] = DEFAULT_YUE2_MEMORY_BUDGET_GIB
+    if not defaults["YUE2_OFFLOAD_AR"]:
+        defaults["YUE2_OFFLOAD_AR"] = DEFAULT_YUE2_OFFLOAD_AR
+    if not defaults["YUE2_DEVICE"]:
+        defaults["YUE2_DEVICE"] = DEFAULT_YUE2_DEVICE
 
     return defaults
 
@@ -311,16 +349,31 @@ DEFAULT_ACESTEP15_COVER_STRENGTH = "1.0"
 DEFAULT_ACESTEP15_REPAINT_START = "0.0"
 DEFAULT_ACESTEP15_REPAINT_END = "-1.0"
 DEFAULT_SEPARATOR_MODEL = "vocals_mel_band_roformer.ckpt"
+DEFAULT_MINIMAX_MODEL_DIR = str((REPO_ROOT / "models" / "comparison" / "minimax-music-3").resolve())
+DEFAULT_MINIMAX_CPU_OFFLOAD = "false"
+DEFAULT_MINIMAX_INSTRUMENTAL = "false"
+DEFAULT_YUE2_MODEL_DIR = str((REPO_ROOT / "models" / "comparison" / "yue2" / "YuE2-3B").resolve())
+DEFAULT_YUE2_VAE_DIR = str((REPO_ROOT / "models" / "comparison" / "yue2" / "YuE2-Vae").resolve())
+DEFAULT_YUE2_COT = "full"
+DEFAULT_YUE2_RUNTIME = "torch"
+DEFAULT_YUE2_MEMORY_BUDGET_GIB = "24"
+DEFAULT_YUE2_OFFLOAD_AR = "false"
+DEFAULT_YUE2_DEVICE = "cuda"
+YUE2_COT_OPTIONS = ["full", "melody", "off"]
+YUE2_RUNTIME_OPTIONS = ["torch", "torch-eager"]
 HEARTMULA_CODEC_DTYPE_OPTIONS = ["float32", "bfloat16"]
 THEME_OPTIONS = ["dark", "light"]
 ACESTEP15_TASK_OPTIONS = ["auto", "text2music", "cover", "repaint"]
 ACESTEP15_LM_BACKEND_OPTIONS = ["vllm", "pt"]
+
 BACKEND_PYTHON_MODULES = {
     "HEARTMULA_PYTHON": ["torch", "torchaudio", "soundfile", "heartlib"],
     "AUDIOX_PYTHON": ["torch", "torchaudio", "einops", "soundfile", "audiox"],
     "MELODYFLOW_PYTHON": ["torch", "soundfile", "omegaconf", "transformers", "sentencepiece", "torchdiffeq", "audiocraft", "xformers"],
     "ACESTEP_PYTHON": ["torch", "torchaudio", "soundfile", "acestep"],
     "ACESTEP15_PYTHON": ["torch", "torchaudio", "soundfile", "acestep"],
+    "MINIMAX_PYTHON": ["torch", "soundfile", "diffusers", "transformers", "accelerate"],
+    "YUE2_PYTHON": ["torch", "soundfile", "yue2"],
 }
 MODEL_OPTIONS = [
     ("heartmula_hny", "HeartMuLa Happy New Year"),
@@ -329,6 +382,8 @@ MODEL_OPTIONS = [
     ("ace_step", "ACE-Step v1-3.5B"),
     ("ace_step_v15_turbo", "ACE-Step 1.5 Turbo"),
     ("ace_step_v15_sft", "ACE-Step 1.5 SFT"),
+    ("minimax_music_3", "MiniMax Music 3.0"),
+    ("yue2", "YuE2"),
 ]
 BACKEND_FIELD_HINTS = {
     "heartmula_hny": (
@@ -349,6 +404,15 @@ BACKEND_FIELD_HINTS = {
         "Valid inputs: prompt/chat and/or tags and/or lyrics. Reference Audio enables cover or repaint tasks from the shared ACE-Step 1.5 settings. "
         "Base-only tasks such as extract, lego, and complete are not exposed for Turbo or SFT."
     ),
+    "minimax_music_3": (
+        "Valid inputs: prompt/chat and/or tags and/or lyrics. Prompt/chat and tags become the MiniMax music description. "
+        "Duration and seed are honored. Official Diffusers inference is text-to-music, so Reference Audio is ignored."
+    ),
+    "yue2": (
+        "Valid inputs: prompt/chat and/or tags as the style, plus section-tagged lyrics. "
+        "cot=full writes a melody-and-chord score before audio. Duration is not a control. "
+        "Reference Audio is ignored; an ABC file can condition a cover when cot is full or melody."
+    ),
 }
 BACKEND_OUTPUT_FILENAMES = {
     "heartmula_hny": "heartmula_hny_output.wav",
@@ -358,6 +422,8 @@ BACKEND_OUTPUT_FILENAMES = {
     "ace_step_v15": "ace_step_v15_output.wav",
     "ace_step_v15_turbo": "ace_step_v15_turbo_output.wav",
     "ace_step_v15_sft": "ace_step_v15_sft_output.wav",
+    "minimax_music_3": "minimax_music_3_output.wav",
+    "yue2": "yue2_output.wav",
 }
 RATING_OPTIONS = ["", "1", "2", "3", "4", "5"]
 VISUAL_PANEL_SIZE = (360, 180)
@@ -838,6 +904,20 @@ class MusicCompareGui:
         self.acestep15_cover_strength_var = tk.StringVar(value=initial_settings.get("ACESTEP15_COVER_STRENGTH", DEFAULT_ACESTEP15_COVER_STRENGTH))
         self.acestep15_repaint_start_var = tk.StringVar(value=initial_settings.get("ACESTEP15_REPAINT_START", DEFAULT_ACESTEP15_REPAINT_START))
         self.acestep15_repaint_end_var = tk.StringVar(value=initial_settings.get("ACESTEP15_REPAINT_END", DEFAULT_ACESTEP15_REPAINT_END))
+        self.minimax_model_dir_var = tk.StringVar(value=initial_settings.get("MINIMAX_MODEL_DIR", DEFAULT_MINIMAX_MODEL_DIR))
+        self.minimax_python_var = tk.StringVar(value=initial_settings.get("MINIMAX_PYTHON", sys.executable))
+        self.minimax_cpu_offload_var = tk.BooleanVar(value=initial_settings.get("MINIMAX_CPU_OFFLOAD", DEFAULT_MINIMAX_CPU_OFFLOAD).strip().lower() in {"1", "true", "yes", "on"})
+        self.minimax_instrumental_var = tk.BooleanVar(value=initial_settings.get("MINIMAX_INSTRUMENTAL", DEFAULT_MINIMAX_INSTRUMENTAL).strip().lower() in {"1", "true", "yes", "on"})
+        self.yue2_model_dir_var = tk.StringVar(value=initial_settings.get("YUE2_MODEL_DIR", DEFAULT_YUE2_MODEL_DIR))
+        self.yue2_vae_dir_var = tk.StringVar(value=initial_settings.get("YUE2_VAE_DIR", DEFAULT_YUE2_VAE_DIR))
+        self.yue2_python_var = tk.StringVar(value=initial_settings.get("YUE2_PYTHON", sys.executable))
+        self.yue2_cot_var = tk.StringVar(value=initial_settings.get("YUE2_COT", DEFAULT_YUE2_COT))
+        self.yue2_runtime_var = tk.StringVar(value=initial_settings.get("YUE2_RUNTIME", DEFAULT_YUE2_RUNTIME))
+        self.yue2_memory_budget_var = tk.StringVar(value=initial_settings.get("YUE2_MEMORY_BUDGET_GIB", DEFAULT_YUE2_MEMORY_BUDGET_GIB))
+        self.yue2_offload_ar_var = tk.BooleanVar(value=initial_settings.get("YUE2_OFFLOAD_AR", DEFAULT_YUE2_OFFLOAD_AR).strip().lower() in {"1", "true", "yes", "on"})
+        self.yue2_cfg_scale_var = tk.StringVar(value=initial_settings.get("YUE2_CFG_SCALE", ""))
+        self.yue2_abc_path_var = tk.StringVar(value=initial_settings.get("YUE2_ABC_PATH", ""))
+        self.yue2_device_var = tk.StringVar(value=initial_settings.get("YUE2_DEVICE", DEFAULT_YUE2_DEVICE))
         sample_audio_files = discover_sample_audio_files(REPO_ROOT)
         default_sample_audio = sample_audio_files[0] if sample_audio_files else ""
         self.sample_audio_files = sample_audio_files
@@ -849,8 +929,14 @@ class MusicCompareGui:
         self.transcription_language_var = tk.StringVar(value=initial_settings.get("TRANSCRIPTION_LANGUAGE", ""))
         self.transcription_skip_separation_var = tk.BooleanVar(value=initial_settings.get("TRANSCRIPTION_SKIP_SEPARATION", "false").strip().lower() in {"1", "true", "yes", "on"})
 
+        disabled_by_default = {"ace_step_v15_turbo", "ace_step_v15_sft"}
+        if not Path(initial_settings.get("MINIMAX_MODEL_DIR", "")).exists():
+            disabled_by_default.add("minimax_music_3")
+        yue2_model_dir = initial_settings.get("YUE2_MODEL_DIR", "").strip()
+        if not yue2_model_dir or not Path(yue2_model_dir).is_dir():
+            disabled_by_default.add("yue2")
         self.model_vars = {
-            name: tk.BooleanVar(value=name not in {"ace_step_v15_turbo", "ace_step_v15_sft"}) for name, _ in MODEL_OPTIONS
+            name: tk.BooleanVar(value=name not in disabled_by_default) for name, _ in MODEL_OPTIONS
         }
         self.status_var = tk.StringVar(value="Ready")
         self.global_speed_var = tk.StringVar(value="Runtime: idle")
@@ -1083,9 +1169,26 @@ class MusicCompareGui:
         self._add_labeled_entry(frame, 31, "ACE-Step 1.5 Cover Strength", self.acestep15_cover_strength_var)
         self._add_labeled_entry(frame, 32, "ACE-Step 1.5 Repaint Start", self.acestep15_repaint_start_var)
         self._add_labeled_entry(frame, 33, "ACE-Step 1.5 Repaint End", self.acestep15_repaint_end_var)
+        self._add_labeled_entry(frame, 34, "MiniMax Model Dir", self.minimax_model_dir_var, self._browse_minimax_model_dir)
+        self._add_labeled_entry(frame, 35, "MiniMax Python", self.minimax_python_var, self._browse_minimax_python)
+        ttk.Checkbutton(frame, text="MiniMax CPU Offload (Diffusers auto-offload for lower VRAM)", variable=self.minimax_cpu_offload_var).grid(row=36, column=0, columnspan=3, sticky="w", pady=(0, 4))
+        ttk.Checkbutton(frame, text="MiniMax Instrumental (use [Instrumental] when lyrics are empty)", variable=self.minimax_instrumental_var).grid(row=37, column=0, columnspan=3, sticky="w", pady=(0, 8))
+        ttk.Button(frame, text="Apply MiniMax Quality Preset", command=self._apply_minimax_quality_preset).grid(row=38, column=0, columnspan=3, sticky="ew", pady=(0, 8))
+        ttk.Button(frame, text="Apply MiniMax Low-VRAM Preset", command=self._apply_minimax_low_vram_preset).grid(row=39, column=0, columnspan=3, sticky="ew", pady=(0, 8))
+        self._add_labeled_entry(frame, 40, "YuE2 Model Dir", self.yue2_model_dir_var, self._browse_yue2_model_dir)
+        self._add_labeled_entry(frame, 41, "YuE2 VAE Dir", self.yue2_vae_dir_var, self._browse_yue2_vae_dir)
+        self._add_labeled_entry(frame, 42, "YuE2 Python", self.yue2_python_var, self._browse_yue2_python)
+        self._add_labeled_combobox(frame, 43, "YuE2 Planning (cot)", self.yue2_cot_var, YUE2_COT_OPTIONS)
+        self._add_labeled_combobox(frame, 44, "YuE2 Runtime", self.yue2_runtime_var, YUE2_RUNTIME_OPTIONS)
+        self._add_labeled_entry(frame, 45, "YuE2 Memory Budget (GiB)", self.yue2_memory_budget_var)
+        self._add_labeled_entry(frame, 46, "YuE2 CFG Scale", self.yue2_cfg_scale_var)
+        self._add_labeled_entry(frame, 47, "YuE2 ABC Score", self.yue2_abc_path_var, self._browse_yue2_abc)
+        ttk.Checkbutton(frame, text="YuE2 offload the autoregressive model during synthesis", variable=self.yue2_offload_ar_var).grid(row=48, column=0, columnspan=3, sticky="w", pady=(0, 4))
+        ttk.Button(frame, text="Apply YuE2 Listening Preset", command=self._apply_yue2_listening_preset).grid(row=49, column=0, columnspan=3, sticky="ew", pady=(0, 8))
+        ttk.Button(frame, text="Apply YuE2 Eager Preset", command=self._apply_yue2_eager_preset).grid(row=50, column=0, columnspan=3, sticky="ew", pady=(0, 8))
 
         help_text = tk.Text(frame, height=11, wrap="word")
-        help_text.grid(row=34, column=0, columnspan=3, sticky="nsew", pady=(12, 0))
+        help_text.grid(row=51, column=0, columnspan=3, sticky="nsew", pady=(12, 0))
         help_text.insert(
             "1.0",
             "Each model card shows:\n"
@@ -1102,6 +1205,8 @@ class MusicCompareGui:
             "The HeartMuLa fast preset applies the quickest safe settings validated so far in this repo: CFG 1.5 with resident mode enabled.\n\n"
             "The HeartMuLa low-memory preset applies the memory-saving settings validated so far in this repo: CFG 1.0, bfloat16 codec, staged decode enabled, and lazy loading enabled.\n\n"
             "MelodyFlow and both ACE-Step lines also need local runtime assets. The legacy ACE-Step slot points at the older v1-3.5B checkpoint layout. ACE-Step 1.5 follows the upstream fork in third_party/ACE-Step-1.5 and expects a checkpoints root containing folders such as acestep-v15-turbo, acestep-v15-sft, vae, and the LM models. Turbo and SFT now have separate recommended defaults here: both can use the shared 1.7B LM when available, Turbo stays at 8 steps with low guidance, and SFT uses 50 steps with CFG enabled. All of those fields are overridable per model. The shared ACE-Step 1.5 task selector can stay on auto for text-only comparisons; if you set Reference Audio, auto switches those 1.5 backends to cover mode. Repaint is also exposed here through the shared start and end fields.\n\n"
+            "MiniMax Music 3 runs locally through Hugging Face Diffusers ModularPipeline and the official MiniMaxAI/MiniMax-Music3 weights. No ComfyUI checkout and no MiniMax API key. Prompt/chat and tags become the music description; lyrics keep section tags such as [Verse] and [Chorus]. Duration and seed are honored. The Quality preset keeps the model on GPU; Low-VRAM enables Diffusers CPU offload.\n\n"
+            "YuE2 uses the official yue2 pipeline from third_party/YuE with local m-a-p/YuE2-3B and m-a-p/YuE2-Vae snapshots. Prompt/chat and tags become the style. Lyrics should use section tags such as [Verse] and [Chorus]. cot=full writes a melody-and-chord score, cot=melody plans melody only, and cot=off skips the score. Duration is not a control; the song follows the plan. Reference Audio is ignored. An ABC file can condition generation when cot is full or melody. The listening preset is the published 24 GiB BF16 path. The eager preset switches to torch-eager and offloads the autoregressive model, which is the safer Windows fallback if the default CUDA graph path fails. Weights are CC BY-NC 4.0.\n\n"
             "Rendering progress is shown as live runtime plus measured audio currently written to the backend output file. Some models only flush that file near the end, so their progress can stay near zero until the final write."
         )
         help_text.configure(state="disabled")
@@ -1295,6 +1400,29 @@ class MusicCompareGui:
         self.heart_lazy_load_var.set(True)
         self.status_var.set("Applied HeartMuLa low-memory preset")
 
+    def _apply_minimax_quality_preset(self) -> None:
+        self.minimax_cpu_offload_var.set(False)
+        self.status_var.set("Applied MiniMax quality preset")
+
+    def _apply_minimax_low_vram_preset(self) -> None:
+        self.minimax_cpu_offload_var.set(True)
+
+    def _apply_yue2_listening_preset(self) -> None:
+        self.yue2_cot_var.set("full")
+        self.yue2_runtime_var.set("torch")
+        self.yue2_memory_budget_var.set("24")
+        self.yue2_offload_ar_var.set(False)
+        self.yue2_cfg_scale_var.set("")
+        self.yue2_device_var.set("cuda")
+
+    def _apply_yue2_eager_preset(self) -> None:
+        self.yue2_cot_var.set("full")
+        self.yue2_runtime_var.set("torch-eager")
+        self.yue2_memory_budget_var.set("24")
+        self.yue2_offload_ar_var.set(True)
+        self.yue2_device_var.set("cuda")
+        self.status_var.set("Applied MiniMax low-VRAM preset")
+
     def _build_model_cards(self) -> None:
         for idx, (backend, label) in enumerate(MODEL_OPTIONS):
             row = idx // 2
@@ -1391,9 +1519,12 @@ class MusicCompareGui:
         for child in widget.winfo_children():
             self._bind_tooltip_recursive(child, tooltip)
 
-    def _add_labeled_entry(self, parent: ttk.Frame, row: int, label: str, variable: tk.StringVar, browse_command=None) -> None:
+    def _add_labeled_entry(self, parent: ttk.Frame, row: int, label: str, variable: tk.StringVar, browse_command=None, show: str | None = None) -> None:
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=(0, 8), padx=(0, 8))
-        ttk.Entry(parent, textvariable=variable).grid(row=row, column=1, sticky="ew", pady=(0, 8))
+        entry_kwargs = {"textvariable": variable}
+        if show:
+            entry_kwargs["show"] = show
+        ttk.Entry(parent, **entry_kwargs).grid(row=row, column=1, sticky="ew", pady=(0, 8))
         if browse_command:
             ttk.Button(parent, text="Browse", command=browse_command).grid(row=row, column=2, sticky="e", pady=(0, 8), padx=(8, 0))
 
@@ -1587,6 +1718,36 @@ class MusicCompareGui:
         if path:
             self.acestep15_python_var.set(path)
 
+    def _browse_minimax_model_dir(self) -> None:
+        path = filedialog.askdirectory(initialdir=self.minimax_model_dir_var.get() or str(Path.cwd()))
+        if path:
+            self.minimax_model_dir_var.set(path)
+
+    def _browse_yue2_model_dir(self) -> None:
+        path = filedialog.askdirectory(initialdir=self.yue2_model_dir_var.get() or str(Path.cwd()))
+        if path:
+            self.yue2_model_dir_var.set(path)
+
+    def _browse_yue2_vae_dir(self) -> None:
+        path = filedialog.askdirectory(initialdir=self.yue2_vae_dir_var.get() or str(Path.cwd()))
+        if path:
+            self.yue2_vae_dir_var.set(path)
+
+    def _browse_yue2_python(self) -> None:
+        path = filedialog.askopenfilename(filetypes=[("Python", "python.exe"), ("Executables", "*.exe"), ("All files", "*.*")])
+        if path:
+            self.yue2_python_var.set(path)
+
+    def _browse_yue2_abc(self) -> None:
+        path = filedialog.askopenfilename(filetypes=[("ABC score", "*.abc"), ("Text", "*.txt"), ("All files", "*.*")])
+        if path:
+            self.yue2_abc_path_var.set(path)
+
+    def _browse_minimax_python(self) -> None:
+        path = filedialog.askopenfilename(filetypes=[("Python", "python.exe"), ("Executables", "*.exe"), ("All files", "*.*")])
+        if path:
+            self.minimax_python_var.set(path)
+
     def _browse_separator_python(self) -> None:
         path = filedialog.askopenfilename(filetypes=[("Python", "python.exe"), ("Executables", "*.exe"), ("All files", "*.*")])
         if path:
@@ -1652,6 +1813,20 @@ class MusicCompareGui:
             "ACESTEP15_COVER_STRENGTH": self.acestep15_cover_strength_var.get().strip(),
             "ACESTEP15_REPAINT_START": self.acestep15_repaint_start_var.get().strip(),
             "ACESTEP15_REPAINT_END": self.acestep15_repaint_end_var.get().strip(),
+            "MINIMAX_MODEL_DIR": self.minimax_model_dir_var.get().strip(),
+            "MINIMAX_PYTHON": self.minimax_python_var.get().strip(),
+            "MINIMAX_CPU_OFFLOAD": "true" if self.minimax_cpu_offload_var.get() else "false",
+            "MINIMAX_INSTRUMENTAL": "true" if self.minimax_instrumental_var.get() else "false",
+            "YUE2_MODEL_DIR": self.yue2_model_dir_var.get().strip(),
+            "YUE2_VAE_DIR": self.yue2_vae_dir_var.get().strip(),
+            "YUE2_PYTHON": self.yue2_python_var.get().strip(),
+            "YUE2_COT": self.yue2_cot_var.get().strip(),
+            "YUE2_RUNTIME": self.yue2_runtime_var.get().strip(),
+            "YUE2_MEMORY_BUDGET_GIB": self.yue2_memory_budget_var.get().strip(),
+            "YUE2_OFFLOAD_AR": "true" if self.yue2_offload_ar_var.get() else "false",
+            "YUE2_CFG_SCALE": self.yue2_cfg_scale_var.get().strip(),
+            "YUE2_ABC_PATH": self.yue2_abc_path_var.get().strip(),
+            "YUE2_DEVICE": self.yue2_device_var.get().strip(),
             "TRANSCRIPTION_AUDIO_FILE": self.transcription_audio_var.get().strip(),
             "TRANSCRIPTION_OUTPUT_DIR": self.transcription_output_dir_var.get().strip(),
             "TRANSCRIPTION_LANGUAGE": self.transcription_language_var.get().strip(),
@@ -1787,6 +1962,22 @@ class MusicCompareGui:
                 f"config={config_path or '<missing>'} | "
                 f"task={self.acestep15_task_type_var.get().strip() or 'auto'} | "
                 f"python={self.acestep15_python_var.get().strip() or sys.executable}"
+            )
+            return
+        if backend == "minimax_music_3":
+            self._log(
+                f"{label} config: models={self.minimax_model_dir_var.get().strip() or '<missing>'} | "
+                f"cpu_offload={'true' if self.minimax_cpu_offload_var.get() else 'false'} | "
+                f"python={self.minimax_python_var.get().strip() or sys.executable}"
+            )
+            return
+        if backend == "yue2":
+            self._log(
+                f"{label} config: model={self.yue2_model_dir_var.get().strip() or '<missing>'} | "
+                f"vae={self.yue2_vae_dir_var.get().strip() or '<missing>'} | "
+                f"cot={self.yue2_cot_var.get().strip() or 'full'} | "
+                f"runtime={self.yue2_runtime_var.get().strip() or 'torch'} | "
+                f"python={self.yue2_python_var.get().strip() or sys.executable}"
             )
 
     def _log_backend_result_details(self, label: str, result: dict) -> None:

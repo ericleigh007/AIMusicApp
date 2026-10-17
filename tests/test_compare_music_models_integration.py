@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tools.ai.compare_music_models import run_comparison
-from tools.ai.music_model_backends import MusicBackendResult
+from tools.ai.music_model_backends import MusicBackendResult, MiniMaxMusicBackend
 
 
 class CompareMusicModelsIntegrationTests(unittest.TestCase):
@@ -185,6 +185,93 @@ class CompareMusicModelsIntegrationTests(unittest.TestCase):
         payload = json.loads(completed.stdout)
         self.assertTrue(payload["ok"])
         self.assertEqual([], payload["issues"])
+
+    def test_run_comparison_executes_minimax_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / "compare"
+
+            def fake_run_subprocess(command, **_kwargs):
+                output_index = command.index("--output") + 1
+                Path(command[output_index]).write_bytes(b"RIFFtest")
+
+                class Completed:
+                    returncode = 0
+                    stdout = '{"model": "music-3.0", "lyrics_optimizer": true}'
+                    stderr = ""
+
+                return Completed()
+
+            model_dir = Path(temp_dir) / "minimax-music-3"
+            model_dir.mkdir()
+            (model_dir / "model_index.json").write_text("{}", encoding="utf-8")
+            with unittest.mock.patch.dict(
+                os.environ,
+                {
+                    "MINIMAX_MODEL_DIR": str(model_dir),
+                    "MINIMAX_PYTHON": sys.executable,
+                },
+                clear=False,
+            ):
+                with patch("tools.ai.music_model_backends.python_exists", return_value=True):
+                    with patch("tools.ai.music_model_backends.find_missing_python_modules", return_value=[]):
+                        with patch("tools.ai.music_model_backends._run_subprocess", side_effect=fake_run_subprocess):
+                            result = run_comparison(
+                                prompt="steady pulse",
+                                models=["minimax_music_3"],
+                                output_dir=str(output_dir),
+                                duration=0.25,
+                            )
+
+            self.assertTrue(result["success"])
+            self.assertEqual("minimax_music_3", result["results"][0]["backend"])
+            self.assertTrue(Path(result["results"][0]["output_path"]).exists())
+        self.assertIsInstance(MiniMaxMusicBackend().name, str)
+
+    def test_run_comparison_executes_yue2_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / "compare"
+            model_dir = Path(temp_dir) / "YuE2-3B"
+            vae_dir = Path(temp_dir) / "YuE2-Vae"
+            model_dir.mkdir()
+            vae_dir.mkdir()
+            (model_dir / "qwen.tiktoken").write_bytes(b"token")
+
+            def fake_run_subprocess(command, **_kwargs):
+                output_index = command.index("--output") + 1
+                Path(command[output_index]).write_bytes(b"RIFFtest")
+
+                class Completed:
+                    returncode = 0
+                    stdout = '{"audio_seconds": 12.0, "backend": "yue2"}'
+                    stderr = ""
+
+                return Completed()
+
+            with unittest.mock.patch.dict(
+                os.environ,
+                {
+                    "YUE2_MODEL_DIR": str(model_dir),
+                    "YUE2_VAE_DIR": str(vae_dir),
+                    "YUE2_PYTHON": sys.executable,
+                    "YUE2_COT": "full",
+                    "YUE2_ABC_PATH": "",
+                },
+                clear=False,
+            ):
+                with patch("tools.ai.music_model_backends.python_exists", return_value=True):
+                    with patch("tools.ai.music_model_backends.find_missing_python_modules", return_value=[]):
+                        with patch("tools.ai.music_model_backends._run_subprocess", side_effect=fake_run_subprocess):
+                            result = run_comparison(
+                                prompt="city lights",
+                                models=["yue2"],
+                                output_dir=str(output_dir),
+                                lyrics="[Chorus]\nHold a little room for light",
+                                seed=831001,
+                            )
+
+            self.assertTrue(result["success"])
+            self.assertEqual("yue2", result["results"][0]["backend"])
+            self.assertTrue(Path(result["results"][0]["output_path"]).exists())
 
 
 if __name__ == "__main__":

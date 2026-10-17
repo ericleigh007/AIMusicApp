@@ -19,10 +19,11 @@ PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
 HEARTLIB_REPO_URL = "https://github.com/ericleigh007/heartlib.git"
 ACESTEP_REPO_URL = "https://github.com/ericleigh007/ACE-Step.git"
 ACESTEP15_REPO_URL = "https://github.com/ericleigh007/ACE-Step-1.5.git"
+YUE2_REPO_URL = "https://github.com/multimodal-art-projection/YuE.git"
 MELODYFLOW_SPACE_REPO_ID = "facebook/MelodyFlow"
 HEARTMULA_BASE_MODEL_REPO = "HeartMuLa/HeartMuLa-oss-3B"
 DEFAULT_BOOTSTRAP_MODELS = ["heartmula_hny", "heartmula_base", "melodyflow", "ace_step", "ace_step_v15_turbo", "ace_step_v15_sft"]
-BOOTSTRAP_MODEL_CHOICES = [*DEFAULT_BOOTSTRAP_MODELS, "ace_step_v15", "audiox"]
+BOOTSTRAP_MODEL_CHOICES = [*DEFAULT_BOOTSTRAP_MODELS, "ace_step_v15", "audiox", "minimax_music_3", "yue2"]
 
 
 def _normalize_bootstrap_model_name(model_name: str) -> str:
@@ -214,7 +215,7 @@ def _download_models(venv_python: Path, *, selected_models: list[str], dry_run: 
     comparison_models = [
         name
         for name in selected_models
-        if name in {"audiox", "melodyflow", "ace_step", "ace_step_v15", "ace_step_v15_turbo", "ace_step_v15_sft"}
+        if name in {"audiox", "melodyflow", "ace_step", "ace_step_v15", "ace_step_v15_turbo", "ace_step_v15_sft", "minimax_music_3", "yue2"}
     ]
     if comparison_models:
         comparison_command = [
@@ -283,6 +284,7 @@ def main() -> None:
             _ensure_git_checkout("heartlib", HEARTLIB_REPO_URL, THIRD_PARTY_ROOT / "heartlib", dry_run=args.dry_run),
             _ensure_git_checkout("ACE-Step", ACESTEP_REPO_URL, THIRD_PARTY_ROOT / "ACE-Step", dry_run=args.dry_run),
             _ensure_git_checkout("ACE-Step-1.5", ACESTEP15_REPO_URL, THIRD_PARTY_ROOT / "ACE-Step-1.5", dry_run=args.dry_run),
+            _ensure_git_checkout("YuE2", YUE2_REPO_URL, THIRD_PARTY_ROOT / "YuE", dry_run=args.dry_run),
         ]
 
     if args.download_models:

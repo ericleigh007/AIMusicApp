@@ -185,6 +185,52 @@ class MusicBackendChecksTests(unittest.TestCase):
                         )
         self.assertEqual([], issues)
 
+    def test_collect_preflight_issues_reports_missing_minimax_local_assets(self) -> None:
+        issues = collect_preflight_issues(["minimax_music_3"], {"MINIMAX_MODEL_DIR": "", "MINIMAX_PYTHON": ""})
+        self.assertTrue(any("MINIMAX_MODEL_DIR" in issue or "MiniMax-Music3" in issue for issue in issues))
+
+    def test_collect_preflight_issues_accepts_minimax_local_setup(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            model_dir = Path(temp_dir) / "minimax-music-3"
+            model_dir.mkdir()
+            (model_dir / "model_index.json").write_text("{}", encoding="utf-8")
+            with patch("tools.ai.music_backend_checks.python_exists", return_value=True):
+                with patch("tools.ai.music_backend_checks.find_missing_python_modules", return_value=[]):
+                    issues = collect_preflight_issues(
+                        ["minimax_music_3"],
+                        {
+                            "MINIMAX_MODEL_DIR": str(model_dir),
+                            "MINIMAX_PYTHON": sys.executable,
+                        },
+                    )
+        self.assertEqual([], issues)
+
+    def test_collect_preflight_issues_reports_missing_yue2_assets(self) -> None:
+        issues = collect_preflight_issues(["yue2"], {"YUE2_MODEL_DIR": "", "YUE2_VAE_DIR": "", "YUE2_PYTHON": ""})
+        self.assertTrue(any("YUE2_MODEL_DIR" in issue or "YuE2-3B" in issue for issue in issues))
+        self.assertTrue(any("YUE2_VAE_DIR" in issue or "YuE2-Vae" in issue for issue in issues))
+
+    def test_collect_preflight_issues_accepts_yue2_local_setup(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            model_dir = Path(temp_dir) / "YuE2-3B"
+            vae_dir = Path(temp_dir) / "YuE2-Vae"
+            model_dir.mkdir()
+            vae_dir.mkdir()
+            (model_dir / "qwen.tiktoken").write_bytes(b"token")
+            (vae_dir / "config.json").write_text("{}", encoding="utf-8")
+            with patch("tools.ai.music_backend_checks.python_exists", return_value=True):
+                with patch("tools.ai.music_backend_checks.find_missing_python_modules", return_value=[]):
+                    issues = collect_preflight_issues(
+                        ["yue2"],
+                        {
+                            "YUE2_MODEL_DIR": str(model_dir),
+                            "YUE2_VAE_DIR": str(vae_dir),
+                            "YUE2_PYTHON": sys.executable,
+                            "YUE2_COT": "full",
+                        },
+                    )
+        self.assertEqual([], issues)
+
 
 if __name__ == "__main__":
     unittest.main()

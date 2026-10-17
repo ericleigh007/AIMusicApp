@@ -8,6 +8,8 @@ Backends currently supported:
     - melodyflow  : native adapter via a local helper runner in this repo
     - ace_step    : native adapter via a local ACE-Step runner in this repo
     - ace_step_v15: native adapter via a local ACE-Step 1.5 runner in this repo
+    - minimax_music_3: official MiniMaxAI/MiniMax-Music3 weights through Hugging Face Diffusers
+    - yue2: official m-a-p/YuE2-3B pipeline with the YuE2-Vae listening decoder
 
 The goal is to keep a stable comparison interface even when each model family has
 different runtime requirements.
@@ -38,6 +40,17 @@ ACESTEP15_TURBO_DEFAULT_STEPS = 8
 ACESTEP15_SFT_DEFAULT_STEPS = 50
 ACESTEP15_DEFAULT_LM_MODEL_PATH = "acestep-5Hz-lm-1.7B"
 ACESTEP15_DEFAULT_LM_BACKEND = "vllm"
+MINIMAX_DEFAULT_MODEL_DIR = REPO_ROOT / "models" / "comparison" / "minimax-music-3"
+MINIMAX_DEFAULT_MODEL_ID = "MiniMaxAI/MiniMax-Music3"
+YUE2_DEFAULT_MODEL_DIR = REPO_ROOT / "models" / "comparison" / "yue2" / "YuE2-3B"
+YUE2_DEFAULT_VAE_DIR = REPO_ROOT / "models" / "comparison" / "yue2" / "YuE2-Vae"
+YUE2_DEFAULT_MODEL_ID = "m-a-p/YuE2-3B"
+YUE2_DEFAULT_VAE_ID = "m-a-p/YuE2-Vae"
+YUE2_DEFAULT_COT = "full"
+YUE2_DEFAULT_RUNTIME = "torch-eager"
+YUE2_DEFAULT_MEMORY_BUDGET_GIB = 24.0
+YUE2_COT_CHOICES = {"full", "melody", "off"}
+YUE2_RUNTIME_CHOICES = {"torch", "torch-eager", "vllm"}
 
 
 @dataclass
@@ -153,6 +166,41 @@ def _parse_env_float(name: str, default: float) -> float:
         return float(raw.strip())
     except ValueError:
         return default
+
+
+def _parse_env_optional_float(name: str) -> float | None:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return None
+    try:
+        return float(raw.strip())
+    except ValueError:
+        return None
+
+
+def _parse_env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return int(raw.strip())
+    except ValueError:
+        return default
+
+
+def _parse_runner_payload(stdout: str | None) -> dict[str, object]:
+    payload: dict[str, object] = {}
+    for line in (stdout or "").splitlines():
+        candidate = line.strip()
+        if not candidate.startswith("{"):
+            continue
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            payload = parsed
+    return payload
 
 
 def _parse_env_str(name: str, default: str) -> str:
@@ -281,6 +329,8 @@ class HeartMuLaBackend(MusicBackend):
             command.extend(["--max-vram-gb", str(max_vram_gb)])
         if stage_codec:
             command.extend(["--stage-codec", "true"])
+        if request.seed is not None:
+            command.extend(["--seed", str(request.seed)])
 
         started = time.perf_counter()
         try:
@@ -454,7 +504,13 @@ class ACEStepBackend(MusicBackend):
             str(request.duration_seconds),
             "--lyrics",
             request.lyrics or "",
+            "--infer-step",
+            str(max(1, int(_parse_env_float("ACESTEP_INFERENCE_STEPS", 60)))),
+            "--guidance-scale",
+            str(_parse_env_float("ACESTEP_GUIDANCE_SCALE", 15.0)),
         ]
+        if _parse_env_bool("ACESTEP_CPU_OFFLOAD", False):
+            command.append("--cpu-offload")
 
         started = time.perf_counter()
         try:
@@ -878,6 +934,142 @@ class CommandTemplateBackend(MusicBackend):
         )
 
 
+class MiniMaxMusicBackend(MusicBackend):
+    name = "minimax_music_3"
+
+    def run(self, request: MusicGenRequest) -> MusicBackendResult:
+        model_dir = Path(os.environ.get("MINIMAX_MODEL_DIR", str(MINIMAX_DEFAULT_MODEL_DIR))).resolve()
+        python_executable = resolve_python_executable(os.environ.get("MINIMAX_PYTHON"), fallback=sys.executable)
+        model_id = _parse_env_str("MINIMAX_MODEL_ID", MINIMAX_DEFAULT_MODEL_ID)
+        cpu_offload = _parse_env_bool("MINIMAX_CPU_OFFLOAD", False)
+        is_instrumental = _parse_env_bool("MINIMAX_INSTRUMENTAL", False)
+        style_prompt = _compose_descriptor_text(request.prompt, request.tags)
+        notes = []
+        if request.reference_audio:
+            notes.append("MiniMax Music 3 is text-to-music; Reference Audio is ignored.")
+
+        if not python_exists(python_executable):
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                error=f"MINIMAX_PYTHON points to a missing interpreter: {python_executable}",
+            )
+        if not model_dir.exists():
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                error=f"Set MINIMAX_MODEL_DIR to a local MiniMaxAI/MiniMax-Music3 download: {model_dir}",
+            )
+        if not ((model_dir / "modular_model_index.json").exists() or (model_dir / "model_index.json").exists()):
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                error=(
+                    f"MINIMAX_MODEL_DIR is not an official Diffusers MiniMax Music 3 snapshot "
+                    f"(missing modular_model_index.json): {model_dir}. "
+                    f"Download {MINIMAX_DEFAULT_MODEL_ID}."
+                ),
+            )
+
+        required_modules = ["torch", "soundfile", "diffusers", "transformers", "accelerate"]
+        missing_modules = find_missing_python_modules(python_executable, required_modules)
+        if missing_modules:
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                error=(
+                    f"MiniMax Python environment is missing required modules: {', '.join(missing_modules)}. "
+                    f"Run setup_minimax_env.bat or set MINIMAX_PYTHON to a torch+diffusers environment."
+                ),
+                metadata={"python_executable": python_executable, "missing_modules": missing_modules},
+            )
+
+        output_dir = _ensure_dir(request.output_dir).resolve()
+        output_path = (output_dir / "minimax_music_3_output.wav").resolve()
+        command = [
+            python_executable,
+            str(REPO_ROOT / "tools" / "ai" / "run_minimax_backend.py"),
+            "--prompt",
+            request.prompt,
+            "--tags",
+            request.tags or "",
+            "--lyrics",
+            request.lyrics or "",
+            "--output",
+            str(output_path),
+            "--model-dir",
+            str(model_dir),
+            "--model-id",
+            model_id,
+            "--duration",
+            str(request.duration_seconds),
+            "--seed",
+            str(request.seed if request.seed is not None else 0),
+            "--cpu-offload",
+            "true" if cpu_offload else "false",
+            "--instrumental",
+            "true" if is_instrumental else "false",
+        ]
+
+        started = time.perf_counter()
+        try:
+            completed = _run_subprocess(command, cwd=REPO_ROOT)
+        except Exception as exc:
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                command=command,
+                error=str(exc),
+            )
+
+        elapsed = round(time.perf_counter() - started, 3)
+        if completed.returncode != 0 or not output_path.exists():
+            stderr = (completed.stderr or completed.stdout or "").strip()
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                command=command,
+                elapsed_seconds=elapsed,
+                error=stderr[:4000] or "MiniMax Music 3 failed without producing output.",
+            )
+
+        runner_payload: dict[str, object] = {}
+        if completed.stdout:
+            try:
+                parsed = json.loads(completed.stdout)
+                if isinstance(parsed, dict):
+                    runner_payload = parsed
+            except json.JSONDecodeError:
+                runner_payload = {}
+
+        return MusicBackendResult(
+            backend=self.name,
+            success=True,
+            output_path=str(output_path),
+            elapsed_seconds=elapsed,
+            command=command,
+            notes=notes,
+            metadata={
+                "stdout": completed.stdout[-2000:] if completed.stdout else "",
+                "python_executable": python_executable,
+                "prompt": request.prompt,
+                "tags": request.tags or "",
+                "lyrics": request.lyrics or "",
+                "effective_descriptor_text": style_prompt,
+                "model_dir": str(model_dir),
+                "model_id": model_id,
+                "cpu_offload": cpu_offload,
+                "is_instrumental": is_instrumental,
+                "backend": "diffusers",
+                "duration_honored": True,
+                "seed_honored": True,
+                "requested_duration_seconds": request.duration_seconds,
+                "requested_seed": request.seed,
+                "generated_seconds": runner_payload.get("generated_seconds"),
+            },
+        )
+
+
 def get_backend_registry() -> dict[str, MusicBackend]:
     return {
         "heartmula": HeartMuLaBackend(fallback_checkpoint_env="HEARTMULA_HNY_CKPT_DIR"),
@@ -901,7 +1093,202 @@ def get_backend_registry() -> dict[str, MusicBackend]:
             default_config_path=ACESTEP15_SFT_DEFAULT_CONFIG,
             env_prefix="ACESTEP15_SFT",
         ),
+        "minimax_music_3": MiniMaxMusicBackend(),
+        "yue2": YuE2Backend(),
     }
+
+
+class YuE2Backend(MusicBackend):
+    name = "yue2"
+
+    def run(self, request: MusicGenRequest) -> MusicBackendResult:
+        model_dir = Path(os.environ.get("YUE2_MODEL_DIR", str(YUE2_DEFAULT_MODEL_DIR))).expanduser()
+        vae_dir = Path(os.environ.get("YUE2_VAE_DIR", str(YUE2_DEFAULT_VAE_DIR))).expanduser()
+        python_executable = resolve_python_executable(os.environ.get("YUE2_PYTHON"), fallback=sys.executable)
+        cot = _parse_env_str("YUE2_COT", YUE2_DEFAULT_COT).lower()
+        runtime_backend = _parse_env_str("YUE2_RUNTIME", YUE2_DEFAULT_RUNTIME).lower()
+        memory_budget = _parse_env_float("YUE2_MEMORY_BUDGET_GIB", YUE2_DEFAULT_MEMORY_BUDGET_GIB)
+        offload_ar = _parse_env_bool("YUE2_OFFLOAD_AR", False)
+        device = _parse_env_str("YUE2_DEVICE", "cuda")
+        cfg_scale = _parse_env_optional_float("YUE2_CFG_SCALE")
+        abc_path = _parse_env_str("YUE2_ABC_PATH", "")
+        seed = request.seed if request.seed is not None else _parse_env_int("YUE2_SEED", 831001)
+        style_prompt = _compose_descriptor_text(request.prompt, request.tags)
+        notes = [
+            "YuE2 song length follows the symbolic plan. Duration (s) is not a generation control.",
+        ]
+        if request.reference_audio:
+            notes.append("YuE2 does not take reference audio directly. Supply an ABC score to condition on a transcribed melody.")
+
+        if cot not in YUE2_COT_CHOICES:
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                error=f"YUE2_COT must be full, melody, or off. Got: {cot}",
+            )
+        if runtime_backend not in YUE2_RUNTIME_CHOICES:
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                error=f"YUE2_RUNTIME must be torch, torch-eager, or vllm. Got: {runtime_backend}",
+            )
+        if abc_path and cot == "off":
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                error="YuE2 ABC scores require cot=full or cot=melody.",
+            )
+        if abc_path and not Path(abc_path).is_file():
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                error=f"YUE2_ABC_PATH does not exist: {abc_path}",
+            )
+        if not style_prompt:
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                error="YuE2 needs a style prompt. Fill Prompt/Chat and/or Tags.",
+            )
+        if not python_exists(python_executable):
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                error=f"YUE2_PYTHON points to a missing interpreter: {python_executable}",
+            )
+        if not model_dir.exists():
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                error=(
+                    f"Set YUE2_MODEL_DIR to a local {YUE2_DEFAULT_MODEL_ID} download: {model_dir}"
+                ),
+            )
+        if not ((model_dir / "qwen.tiktoken").is_file() or (model_dir / "YuE2-3B" / "qwen.tiktoken").is_file()):
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                error=(
+                    f"YUE2_MODEL_DIR is not an official YuE2-3B snapshot (missing qwen.tiktoken): {model_dir}. "
+                    f"Download {YUE2_DEFAULT_MODEL_ID}."
+                ),
+            )
+        if not vae_dir.exists():
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                error=f"Set YUE2_VAE_DIR to a local {YUE2_DEFAULT_VAE_ID} download: {vae_dir}",
+            )
+
+        required_modules = ["torch", "soundfile", "yue2"]
+        missing_modules = find_missing_python_modules(python_executable, required_modules)
+        if missing_modules:
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                error=(
+                    f"YuE2 Python environment is missing required modules: {', '.join(missing_modules)}. "
+                    "Run setup_yue2_env.bat or set YUE2_PYTHON to the YuE2 interpreter."
+                ),
+                metadata={"python_executable": python_executable, "missing_modules": missing_modules},
+            )
+
+        output_dir = _ensure_dir(request.output_dir).resolve()
+        output_path = (output_dir / "yue2_output.wav").resolve()
+        command = [
+            python_executable,
+            str(REPO_ROOT / "tools" / "ai" / "run_yue2_backend.py"),
+            "--prompt",
+            request.prompt,
+            "--tags",
+            request.tags or "",
+            "--lyrics",
+            request.lyrics or "",
+            "--output",
+            str(output_path),
+            "--model-dir",
+            str(model_dir),
+            "--vae-dir",
+            str(vae_dir),
+            "--cot",
+            cot,
+            "--seed",
+            str(seed),
+            "--cfg-scale",
+            "" if cfg_scale is None else str(cfg_scale),
+            "--abc-file",
+            abc_path,
+            "--device",
+            device,
+            "--runtime-backend",
+            runtime_backend,
+            "--memory-budget-gib",
+            str(memory_budget),
+            "--offload-ar",
+            "true" if offload_ar else "false",
+        ]
+
+        started = time.perf_counter()
+        try:
+            completed = _run_subprocess(command, cwd=REPO_ROOT)
+        except Exception as exc:
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                command=command,
+                error=str(exc),
+            )
+
+        elapsed = round(time.perf_counter() - started, 3)
+        if completed.returncode != 0 or not output_path.exists():
+            stderr = (completed.stderr or completed.stdout or "").strip()
+            return MusicBackendResult(
+                backend=self.name,
+                success=False,
+                command=command,
+                elapsed_seconds=elapsed,
+                error=stderr[:4000] or "YuE2 failed without producing output.",
+            )
+
+        runner_payload = _parse_runner_payload(completed.stdout)
+        if runner_payload.get("instrumental"):
+            notes.append("Lyrics were empty, so YuE2 received an [Instrumental] lyric placeholder.")
+        return MusicBackendResult(
+            backend=self.name,
+            success=True,
+            output_path=str(output_path),
+            elapsed_seconds=elapsed,
+            command=command,
+            notes=notes,
+            metadata={
+                "stdout": completed.stdout[-2000:] if completed.stdout else "",
+                "python_executable": python_executable,
+                "prompt": request.prompt,
+                "tags": request.tags or "",
+                "lyrics": request.lyrics or "",
+                "effective_descriptor_text": style_prompt,
+                "model_dir": str(model_dir),
+                "vae_dir": str(vae_dir),
+                "model_id": YUE2_DEFAULT_MODEL_ID,
+                "vae_id": YUE2_DEFAULT_VAE_ID,
+                "cot": cot,
+                "runtime_backend": runtime_backend,
+                "memory_budget_gib": memory_budget,
+                "offload_ar": offload_ar,
+                "cfg_scale": cfg_scale,
+                "abc_path": abc_path,
+                "backend": "yue2",
+                "duration_honored": False,
+                "seed_honored": True,
+                "requested_duration_seconds": request.duration_seconds,
+                "requested_seed": seed,
+                "generated_seconds": runner_payload.get("audio_seconds"),
+                "sample_rate": runner_payload.get("sample_rate"),
+                "truncated": runner_payload.get("truncated"),
+                "artifacts_dir": runner_payload.get("artifacts_dir"),
+                "instrumental": bool(runner_payload.get("instrumental")),
+            },
+        )
 
 
 def write_comparison_summary(output_dir: str | Path, summary: dict) -> Path:

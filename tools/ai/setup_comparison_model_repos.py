@@ -92,6 +92,26 @@ MODEL_REPO_MAP = {
             },
         ],
     },
+    "minimax_music_3": {
+        "downloads": [
+            {
+                "repo_id": "MiniMaxAI/MiniMax-Music3",
+                "local_subdir": "minimax-music-3",
+            }
+        ],
+    },
+    "yue2": {
+        "downloads": [
+            {
+                "repo_id": "m-a-p/YuE2-3B",
+                "local_subdir": "yue2/YuE2-3B",
+            },
+            {
+                "repo_id": "m-a-p/YuE2-Vae",
+                "local_subdir": "yue2/YuE2-Vae",
+            },
+        ],
+    },
 }
 
 

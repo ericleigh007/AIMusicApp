@@ -66,6 +66,14 @@ class MusicCompareGuiSettingsTests(unittest.TestCase):
         self.assertEqual("50", defaults["ACESTEP15_SFT_INFERENCE_STEPS"])
         self.assertEqual("7.0", defaults["ACESTEP15_SFT_GUIDANCE_SCALE"])
         self.assertEqual("auto", defaults["ACESTEP15_TASK_TYPE"])
+        self.assertEqual("false", defaults["MINIMAX_CPU_OFFLOAD"])
+        self.assertEqual("false", defaults["MINIMAX_INSTRUMENTAL"])
+        self.assertEqual("C:/fallback/python.exe", defaults["MINIMAX_PYTHON"])
+        self.assertEqual("full", defaults["YUE2_COT"])
+        self.assertEqual("torch", defaults["YUE2_RUNTIME"])
+        self.assertEqual("24", defaults["YUE2_MEMORY_BUDGET_GIB"])
+        self.assertEqual("false", defaults["YUE2_OFFLOAD_AR"])
+        self.assertEqual("C:/fallback/python.exe", defaults["YUE2_PYTHON"])
 
     def test_detect_default_backend_settings_enables_acestep15_lm_defaults_when_shared_lm_exists(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

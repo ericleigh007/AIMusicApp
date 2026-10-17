@@ -21,6 +21,9 @@ MELODYFLOW_DEFAULT_MODEL_REPO = "facebook/melodyflow-t24-30secs"
 ACESTEP_DEFAULT_MODEL_REPO = "ACE-Step/ACE-Step-v1-3.5B"
 ACESTEP15_DEFAULT_MODEL_REPO = "ACE-Step/Ace-Step1.5"
 ACESTEP15_SFT_MODEL_REPO = "ACE-Step/acestep-v15-sft"
+MINIMAX_DEFAULT_MODEL_REPO = "MiniMaxAI/MiniMax-Music3"
+YUE2_DEFAULT_MODEL_REPO = "m-a-p/YuE2-3B"
+YUE2_DEFAULT_VAE_REPO = "m-a-p/YuE2-Vae"
 
 
 def _melodyflow_space_repo_candidates(configured: str | None = None) -> list[Path]:
@@ -264,5 +267,76 @@ def collect_preflight_issues(models: list[str], settings: dict[str, str]) -> lis
                 "ACE-Step 1.5 SFT: set ACESTEP15_SFT_CONFIG_PATH to an installed SFT model path. "
                 f"Recommended repo: {ACESTEP15_SFT_MODEL_REPO}."
             )
+
+    if "minimax_music_3" in models:
+        minimax_model_dir = settings.get("MINIMAX_MODEL_DIR", "").strip()
+        minimax_python = resolve_python_executable(settings.get("MINIMAX_PYTHON"))
+        if not python_exists(minimax_python):
+            issues.append("MiniMax Music 3: MINIMAX_PYTHON must point to a valid python.exe.")
+        else:
+            missing = find_missing_python_modules(
+                minimax_python,
+                ["torch", "soundfile", "diffusers", "transformers", "accelerate"],
+            )
+            if missing:
+                issues.append(f"MiniMax Music 3: {minimax_python} is missing modules: {', '.join(missing)}.")
+        if not minimax_model_dir:
+            issues.append(
+                "MiniMax Music 3: set MINIMAX_MODEL_DIR to the official MiniMaxAI/MiniMax-Music3 download. "
+                f"Recommended repo: {MINIMAX_DEFAULT_MODEL_REPO}."
+            )
+        elif not Path(minimax_model_dir).exists():
+            issues.append(f"MiniMax Music 3: MINIMAX_MODEL_DIR does not exist: {minimax_model_dir}.")
+        elif not (
+            Path(minimax_model_dir).joinpath("modular_model_index.json").exists()
+            or Path(minimax_model_dir).joinpath("model_index.json").exists()
+        ):
+            issues.append(
+                "MiniMax Music 3: MINIMAX_MODEL_DIR is missing modular_model_index.json. "
+                f"Download the official Diffusers snapshot {MINIMAX_DEFAULT_MODEL_REPO}."
+            )
+
+    if "yue2" in models:
+        yue2_model_dir = settings.get("YUE2_MODEL_DIR", "").strip()
+        yue2_vae_dir = settings.get("YUE2_VAE_DIR", "").strip()
+        yue2_python = resolve_python_executable(settings.get("YUE2_PYTHON"))
+        yue2_cot = settings.get("YUE2_COT", "full").strip().lower() or "full"
+        if yue2_cot not in {"full", "melody", "off"}:
+            issues.append("YuE2: YUE2_COT must be full, melody, or off.")
+        if not python_exists(yue2_python):
+            issues.append("YuE2: YUE2_PYTHON must point to a valid python.exe.")
+        else:
+            missing = find_missing_python_modules(yue2_python, ["torch", "soundfile", "yue2"])
+            if missing:
+                issues.append(f"YuE2: {yue2_python} is missing modules: {', '.join(missing)}.")
+        if not yue2_model_dir:
+            issues.append(
+                "YuE2: set YUE2_MODEL_DIR to the official YuE2-3B download. "
+                f"Recommended repo: {YUE2_DEFAULT_MODEL_REPO}."
+            )
+        elif not Path(yue2_model_dir).exists():
+            issues.append(f"YuE2: YUE2_MODEL_DIR does not exist: {yue2_model_dir}.")
+        elif not Path(yue2_model_dir).joinpath("qwen.tiktoken").is_file():
+            issues.append(
+                "YuE2: YUE2_MODEL_DIR is missing qwen.tiktoken. "
+                f"Download the official snapshot {YUE2_DEFAULT_MODEL_REPO}."
+            )
+        if not yue2_vae_dir:
+            issues.append(
+                "YuE2: set YUE2_VAE_DIR to the official YuE2-Vae listening decoder. "
+                f"Recommended repo: {YUE2_DEFAULT_VAE_REPO}."
+            )
+        elif not Path(yue2_vae_dir).exists():
+            issues.append(f"YuE2: YUE2_VAE_DIR does not exist: {yue2_vae_dir}.")
+        elif not Path(yue2_vae_dir).joinpath("config.json").is_file():
+            issues.append(
+                "YuE2: YUE2_VAE_DIR is missing config.json. "
+                f"Download the official snapshot {YUE2_DEFAULT_VAE_REPO}."
+            )
+        abc_path = settings.get("YUE2_ABC_PATH", "").strip()
+        if abc_path and not Path(abc_path).is_file():
+            issues.append(f"YuE2: YUE2_ABC_PATH does not exist: {abc_path}.")
+        if abc_path and yue2_cot == "off":
+            issues.append("YuE2: an ABC score requires cot=full or cot=melody.")
 
     return issues

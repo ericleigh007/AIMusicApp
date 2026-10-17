@@ -1,0 +1,9 @@
+# Official MiniMax Music 3 inference stack (torch + Diffusers, no ComfyUI).
+# Diffusers pin is the MiniMax Music 3 integration commit from MiniMaxAI/MiniMax-Music3.
+# Torch itself is installed from the CUDA wheel index in setup_backend_env.py
+# (PyPI's default torch wheel is CPU-only on Windows).
+soundfile
+accelerate
+transformers
+huggingface_hub
+git+https://github.com/huggingface/diffusers.git@dafe3733fcfdbf3c48915fe77be3aef65b5d6a2d

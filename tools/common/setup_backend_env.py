@@ -24,13 +24,17 @@ PROFILE_CONFIG = {
         "editable_repo": False,
         "requirements": ["soundfile"],
         "checkout": THIRD_PARTY_ROOT / "heartlib",
+        "torch_index_url": "https://download.pytorch.org/whl/cu128",
+        "torch_packages": ["torch", "torchaudio"],
         "post_message": "Set HEARTMULA_PYTHON to this venv's python.exe if you want to override defaults.",
     },
     "melodyflow": {
         "venv": ".venv-melodyflow",
         "editable_repo": False,
-        "requirements": ["soundfile", "omegaconf", "transformers", "sentencepiece", "torchdiffeq", "xformers"],
+        "requirements": ["soundfile", "omegaconf", "transformers", "sentencepiece", "torchdiffeq"],
         "checkout": None,
+        "torch_index_url": "https://download.pytorch.org/whl/cu128",
+        "torch_packages": ["torch", "torchaudio"],
         "post_message": "Also clone the MelodyFlow Space checkout via bootstrap_AIMusicApp.bat --download-models or set MELODYFLOW_SPACE_DIR.",
     },
     "acestep": {
@@ -38,6 +42,8 @@ PROFILE_CONFIG = {
         "editable_repo": False,
         "requirements": ["soundfile"],
         "checkout": THIRD_PARTY_ROOT / "ACE-Step",
+        "torch_index_url": "https://download.pytorch.org/whl/cu128",
+        "torch_packages": ["torch", "torchaudio"],
         "post_message": "Set ACESTEP_PYTHON to this venv's python.exe if you want to override defaults.",
     },
     "acestep15": {
@@ -51,6 +57,35 @@ PROFILE_CONFIG = {
         "min_python": (3, 11),
         "max_python_exclusive": (3, 13),
         "post_message": "ACE-Step 1.5 environment ready in third_party/ACE-Step-1.5/.venv. Set ACESTEP15_PYTHON to that python.exe if you want to override defaults.",
+    },
+    "minimax": {
+        "venv": ".venv-minimax",
+        "editable_repo": False,
+        "requirements": [],
+        "checkout": REPO_ROOT,
+        "install_strategy": "requirements-file",
+        "requirements_file": "tools/ai/minimax_requirements.txt",
+        "torch_index_url": "https://download.pytorch.org/whl/cu128",
+        "torch_packages": ["torch", "torchaudio"],
+        "min_python": (3, 10),
+        "post_message": "MiniMax Music 3 environment ready (CUDA torch + Diffusers ModularPipeline). Set MINIMAX_PYTHON to this venv's python.exe if you want to override defaults.",
+    },
+    "yue2": {
+        "venv": ".venv-yue2",
+        "editable_repo": False,
+        "requirements": [],
+        "checkout": THIRD_PARTY_ROOT / "YuE",
+        "torch_index_url": "https://download.pytorch.org/whl/cu128",
+        "torch_packages": ["torch==2.10.0"],
+        "min_python": (3, 10),
+        "max_python_exclusive": (3, 13),
+        "base_python_env": "YUE2_BASE_PYTHON",
+        "post_message": (
+            "YuE2 environment ready. The official yue2 package is installed from third_party/YuE, "
+            "then torch==2.10.0 is reinstalled from the CUDA 12.8 index. "
+            "Set YUE2_PYTHON to this venv's python.exe if you want to override defaults. "
+            "Python 3.12 is the upstream target."
+        ),
     },
 }
 
@@ -332,10 +367,35 @@ def _install_profile(profile: str, *, base_python: str | None, recreate: bool, d
                 "steps": steps,
                 "error": f"Required checkout is missing: {checkout}. Run bootstrap_AIMusicApp.bat first.",
             }
-        steps.append(_run([str(python_path), "-m", "pip", "install", "-e", str(checkout)], dry_run=dry_run))
+        if config.get("install_strategy") == "requirements-file":
+            requirements_file = Path(checkout) / str(config.get("requirements_file") or "requirements.txt")
+            steps.append(_run([str(python_path), "-m", "pip", "install", "-r", str(requirements_file)], dry_run=dry_run))
+        else:
+            steps.append(_run([str(python_path), "-m", "pip", "install", "-e", str(checkout)], dry_run=dry_run))
 
     if config["requirements"]:
         steps.append(_run([str(python_path), "-m", "pip", "install", *config["requirements"]], dry_run=dry_run))
+
+    # CUDA torch last so a checkout's PyPI torch pin cannot leave a CPU wheel in place.
+    torch_index_url = config.get("torch_index_url")
+    torch_packages = list(config.get("torch_packages") or [])
+    if torch_index_url and torch_packages:
+        steps.append(
+            _run(
+                [
+                    str(python_path),
+                    "-m",
+                    "pip",
+                    "install",
+                    "--upgrade",
+                    "--force-reinstall",
+                    "--index-url",
+                    str(torch_index_url),
+                    *torch_packages,
+                ],
+                dry_run=dry_run,
+            )
+        )
 
     ok = all(step.get("ok", False) for step in steps)
     return {

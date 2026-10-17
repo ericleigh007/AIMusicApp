@@ -15,6 +15,8 @@ class BootstrapAndModelDownloadsTests(unittest.TestCase):
         self.assertIn("ace_step_v15_turbo", selected)
         self.assertIn("ace_step_v15_sft", selected)
         self.assertNotIn("audiox", selected)
+        self.assertNotIn("minimax_music_3", selected)
+        self.assertNotIn("yue2", selected)
 
     def test_load_model_selection_reads_boolean_config_map(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -40,6 +42,14 @@ class BootstrapAndModelDownloadsTests(unittest.TestCase):
         selected = _load_model_selection(None, ["melodyflow"], include_audiox=True)
         self.assertEqual(["melodyflow", "audiox"], selected)
 
+    def test_load_model_selection_accepts_minimax_music_3(self) -> None:
+        selected = _load_model_selection(None, ["minimax_music_3"], include_audiox=False)
+        self.assertEqual(["minimax_music_3"], selected)
+
+    def test_load_model_selection_accepts_yue2(self) -> None:
+        selected = _load_model_selection(None, ["yue2"], include_audiox=False)
+        self.assertEqual(["yue2"], selected)
+
     def test_download_comparison_model_repos_plans_turbo_and_sft_dependencies(self) -> None:
         result = download_comparison_model_repos(
             "C:/tmp/models/comparison",
@@ -53,6 +63,36 @@ class BootstrapAndModelDownloadsTests(unittest.TestCase):
         self.assertTrue(any(item["repo_id"] == "ACE-Step/Ace-Step1.5" and item["allow_patterns"] for item in plan))
         self.assertTrue(any(item["repo_id"] == "ACE-Step/acestep-v15-sft" for item in plan))
         self.assertTrue(any(item["local_dir"].endswith("ace-step-1.5\\checkpoints") or item["local_dir"].endswith("ace-step-1.5/checkpoints") for item in plan))
+
+    def test_download_comparison_model_repos_plans_official_minimax_weights(self) -> None:
+        result = download_comparison_model_repos(
+            "C:/tmp/models/comparison",
+            models=["minimax_music_3"],
+            dry_run=True,
+        )
+
+        self.assertTrue(result["ok"])
+        plan = result["download_plan"]
+        self.assertEqual(1, len(plan))
+        self.assertEqual("MiniMaxAI/MiniMax-Music3", plan[0]["repo_id"])
+        self.assertTrue(
+            plan[0]["local_dir"].endswith("minimax-music-3")
+            or plan[0]["local_dir"].endswith("minimax-music-3".replace("/", "\\"))
+        )
+
+    def test_download_comparison_model_repos_plans_official_yue2_weights(self) -> None:
+        result = download_comparison_model_repos(
+            "C:/tmp/models/comparison",
+            models=["yue2"],
+            dry_run=True,
+        )
+
+        self.assertTrue(result["ok"])
+        plan = result["download_plan"]
+        self.assertEqual(2, len(plan))
+        self.assertEqual(["m-a-p/YuE2-3B", "m-a-p/YuE2-Vae"], [item["repo_id"] for item in plan])
+        self.assertTrue(any(item["local_dir"].endswith("yue2\\YuE2-3B") or item["local_dir"].endswith("yue2/YuE2-3B") for item in plan))
+        self.assertTrue(any(item["local_dir"].endswith("yue2\\YuE2-Vae") or item["local_dir"].endswith("yue2/YuE2-Vae") for item in plan))
 
 
 if __name__ == "__main__":

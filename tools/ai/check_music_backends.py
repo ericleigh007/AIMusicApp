@@ -24,7 +24,7 @@ def main() -> None:
     parser.add_argument(
         "--models",
         nargs="+",
-        choices=["heartmula", "heartmula_hny", "heartmula_base", "audiox", "melodyflow", "ace_step", "ace_step_v15", "ace_step_v15_turbo", "ace_step_v15_sft"],
+        choices=["heartmula", "heartmula_hny", "heartmula_base", "audiox", "melodyflow", "ace_step", "ace_step_v15", "ace_step_v15_turbo", "ace_step_v15_sft", "minimax_music_3", "yue2"],
         default=["heartmula_hny", "heartmula_base", "melodyflow", "ace_step", "ace_step_v15_turbo", "ace_step_v15_sft"],
     )
     args = parser.parse_args()
@@ -50,6 +50,13 @@ def main() -> None:
         "ACESTEP15_PYTHON": os.environ.get("ACESTEP15_PYTHON", sys.executable),
         "ACESTEP15_CKPT_DIR": os.environ.get("ACESTEP15_CKPT_DIR", ""),
         "ACESTEP15_SFT_CONFIG_PATH": os.environ.get("ACESTEP15_SFT_CONFIG_PATH", ""),
+        "MINIMAX_MODEL_DIR": os.environ.get("MINIMAX_MODEL_DIR", ""),
+        "MINIMAX_PYTHON": os.environ.get("MINIMAX_PYTHON", sys.executable),
+        "YUE2_MODEL_DIR": os.environ.get("YUE2_MODEL_DIR", ""),
+        "YUE2_VAE_DIR": os.environ.get("YUE2_VAE_DIR", ""),
+        "YUE2_PYTHON": os.environ.get("YUE2_PYTHON", sys.executable),
+        "YUE2_COT": os.environ.get("YUE2_COT", "full"),
+        "YUE2_ABC_PATH": os.environ.get("YUE2_ABC_PATH", ""),
     }
     issues = collect_preflight_issues(args.models, settings)
     payload = {

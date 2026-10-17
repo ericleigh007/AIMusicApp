@@ -105,3 +105,22 @@ def test_resolve_base_python_falls_back_to_uv_managed_spec(monkeypatch) -> None:
 
 def test_app_profile_includes_pytest_for_regression_gate() -> None:
     assert "pytest" in setup_backend_env.PROFILE_CONFIG["app"]["requirements"]
+
+
+def test_minimax_profile_installs_cuda_torch_then_diffusers_requirements() -> None:
+    config = setup_backend_env.PROFILE_CONFIG["minimax"]
+    assert config["install_strategy"] == "requirements-file"
+    assert config["requirements_file"] == "tools/ai/minimax_requirements.txt"
+    assert config["torch_index_url"] == "https://download.pytorch.org/whl/cu128"
+    assert config["torch_packages"] == ["torch", "torchaudio"]
+    assert config["checkout"] == setup_backend_env.REPO_ROOT
+
+
+def test_yue2_profile_installs_official_checkout_then_cuda_torch() -> None:
+    config = setup_backend_env.PROFILE_CONFIG["yue2"]
+    assert config["venv"] == ".venv-yue2"
+    assert config["checkout"] == setup_backend_env.THIRD_PARTY_ROOT / "YuE"
+    assert config["torch_packages"] == ["torch==2.10.0"]
+    assert config["min_python"] == (3, 10)
+    assert config["max_python_exclusive"] == (3, 13)
+    assert config["base_python_env"] == "YUE2_BASE_PYTHON"
